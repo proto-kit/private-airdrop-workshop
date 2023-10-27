@@ -1,6 +1,12 @@
 import "reflect-metadata";
 import { TestingAppChain } from "@proto-kit/sdk";
-import { Airdrop, AirdropProof, canClaim } from "./Airdrop";
+import {
+  Airdrop,
+  AirdropProof,
+  AirdropPublicOutput,
+  canClaim,
+  message,
+} from "./Airdrop";
 import {
   Field,
   PrivateKey,
@@ -30,6 +36,18 @@ describe("Airdrop", () => {
   map.set(key, Bool(true).toField());
 
   const witness = map.getWitness(key);
+
+  async function mockProof(
+    publicOutput: AirdropPublicOutput
+  ): Promise<AirdropProof> {
+    const [, proof] = Pickles.proofOfBase64(await dummyBase64Proof(), 2);
+    return new AirdropProof({
+      proof: proof,
+      maxProofsVerified: 2,
+      publicInput: undefined,
+      publicOutput,
+    });
+  }
 
   beforeAll(async () => {
     appChain = TestingAppChain.fromRuntime({
@@ -68,19 +86,13 @@ describe("Airdrop", () => {
 
   it("should allow claiming if a valid proof is provided", async () => {
     const nullifier = Nullifier.fromJSON(
-      Nullifier.createTestNullifier([Field(0)], aliceKey)
+      Nullifier.createTestNullifier(message, aliceKey)
     );
 
-    const [, proof] = Pickles.proofOfBase64(await dummyBase64Proof(), 2);
-    const airdropProof = new AirdropProof({
-      proof: proof,
-      maxProofsVerified: 2,
-      publicInput: undefined,
-      publicOutput: canClaim(witness, nullifier),
-    });
+    const airdropProof = await mockProof(canClaim(witness, nullifier));
 
     const tx = appChain.transaction(alice, () => {
-      airdrop.claim(airdropProof, UInt64.from(0));
+      airdrop.claim(airdropProof);
     });
 
     await tx.sign();
@@ -94,6 +106,35 @@ describe("Airdrop", () => {
     const balance = await appChain.query.runtime.Balances.balances.get(alice);
 
     expect(block?.txs[0].status).toBe(true);
+    expect(storedNullifier?.toBoolean()).toBe(true);
+    expect(balance?.toBigInt()).toBe(1000n);
+  });
+
+  it("should not allow claiming if a spent nullifier is used", async () => {
+    const nullifier = Nullifier.fromJSON(
+      Nullifier.createTestNullifier([Field(0)], aliceKey)
+    );
+
+    const airdropProof = await mockProof(canClaim(witness, nullifier));
+
+    const tx = appChain.transaction(alice, () => {
+      airdrop.claim(airdropProof);
+    });
+
+    await tx.sign();
+    await tx.send();
+
+    const block = await appChain.produceBlock();
+
+    const storedNullifier = await appChain.query.runtime.Airdrop.nullifiers.get(
+      airdropProof.publicOutput.nullifier
+    );
+    const balance = await appChain.query.runtime.Balances.balances.get(alice);
+
+    expect(block?.txs[0].status).toBe(false);
+    expect(block?.txs[0].statusMessage).toMatch(
+      /Nullifier has already been used/
+    );
     expect(storedNullifier?.toBoolean()).toBe(true);
     expect(balance?.toBigInt()).toBe(1000n);
   });

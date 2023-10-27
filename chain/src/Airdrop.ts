@@ -4,12 +4,7 @@ import {
   state,
   runtimeModule,
 } from "@proto-kit/module";
-import {
-  RuntimeMethodExecutionContext,
-  State,
-  StateMap,
-} from "@proto-kit/protocol";
-import assert from "assert";
+import { State, StateMap, assert } from "@proto-kit/protocol";
 import {
   Bool,
   Experimental,
@@ -19,17 +14,16 @@ import {
   Poseidon,
   Struct,
   UInt64,
-  Provable,
 } from "o1js";
 import { inject } from "tsyringe";
 import { Balances } from "./Balances";
-
-import { container } from "tsyringe";
 
 export class AirdropPublicOutput extends Struct({
   root: Field,
   nullifier: Field,
 }) {}
+
+export const message: Field[] = [Field(0)];
 
 export function canClaim(
   witness: MerkleMapWitness,
@@ -41,7 +35,7 @@ export function canClaim(
   );
   computedKey.assertEquals(key);
 
-  nullifier.verify([Field(0)]);
+  nullifier.verify(message);
 
   return new AirdropPublicOutput({
     root: computedRoot,
@@ -78,7 +72,7 @@ export class Airdrop extends RuntimeModule<AirdropConfig> {
   }
 
   @runtimeMethod()
-  public claim(airdropProof: AirdropProof, test: UInt64) {
+  public claim(airdropProof: AirdropProof) {
     airdropProof.verify();
     const commitment = this.commitment.get();
 

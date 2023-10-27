@@ -12,36 +12,43 @@ highlighter: shiki
     h1 {
         margin-top: 0rem !important;
     }
+
+
+    *::selection {
+        color: inherit !important;
+        background-color: rgba(0,0,0,0.5) !important;
+    }
 </style>
 
 # Introduction to Protokit
 
 Building privacy-enabled blockchains using a Typescript zkDSL
 
+<small>
+
 **@proto_kit**<br/>
-👆 You can find these slides on our twitter
+👆 Follow our twitter for latest updates
+
+**https://discord.gg/pddYkUgwYg**<br/>
+👆 Join our discord to keep up with our development
+
+**https://protokit.dev/**<br/>
+👆 Visit our website for more information (or less)
+
+</small>
 
 ---
+layout: cover
+---
 
-# What is Protokit?
-
-<!-- <v-clicks> -->
-
-- Typescript based framework for building zkChains
-- Not another zkEVM, uses a **custom-tailored zkVM** instead
-- **Hybrid execution model**, both off and on chain
-- Off-chain execution = **client side zk-proofs** 🤯
-- **End to end proven execution**, no sequencer operator shenanigans
-- Customizable and modular (not monolithic 🗿)
-- Virtually no learning curve (you should still pay attention tho 👀)
-
-<!-- </v-clicks> -->
+# From zero to zkHero
+All you need to know to start building with zk!
 
 ---
 
 # What is a zk-proof?
 
-<!-- <v-clicks> -->
+<v-clicks>
 
 - Mathematical **proof of computation[^1] using public or private inputs**
 - Might include a public output too
@@ -52,7 +59,7 @@ Building privacy-enabled blockchains using a Typescript zkDSL
 - **Validity of a proof can be cheaply verified using a verification key**
 - Zero-knowledge-ness is achieved by not exposing the private inputs to the verifier
 
-<!-- </v-clicks> -->
+</v-clicks>
 
 [^1]: [Wikipedia: Zero-knowledge proofs](https://en.wikipedia.org/wiki/Zero-knowledge_proof)
 [^2]: [Mina book: Kimchi ](https://o1-labs.github.io/proof-systems/specs/kimchi.html)
@@ -61,14 +68,14 @@ Building privacy-enabled blockchains using a Typescript zkDSL
 
 # Meet o1js, zkDSL for writing circuits
 
-```typescript {all|4-5|6-16|8|9-14|10|11|12|13|all} {lines: true}
+```typescript {all} {lines: true}
 import { Experimental } from "o1js";
 
 const counter = Experimental.ZkProgram({
     publicInput: Field,
     publicOutput: Field
     methods: {
-        add: {
+        increment: {
             privateInputs: [UInt64, UInt64],
             method: (publicInput: Field, a: UInt64, b: UInt64): Field => {
                 const hash = Poseidon.hash(a.toFields());
@@ -85,18 +92,18 @@ const counter = Experimental.ZkProgram({
 
 # Running our circuit
 
-```typescript {all|1|3-4|3-6|6-10|6-12} {lines: true}
+```typescript {all} {lines: true}
 await counter.compile(); // creates prover & verifier artifacts
 
-const add = UInt64.from(1);
 let state = UInt64.from(0);
 let publicInput = Poseidon.hash(state.toFields());
+const by = UInt64.from(1);
 
-const proofOfIncrement = await counter.add(publicInput, state);
+const proofOfIncrement = await counter.increment(publicInput, state, by);
 
-// keep track of the state, so we can run counter.add(...) again
+// keep track of the state, so we can run counter.increment(...) again
 publicInput = proofOfIncrement.publicOutput; // h(state + 1)
-state = state.add(add); // state + 1
+state = state.add(by); // state + 1
 
 const verified = await counter.verify(proofOfIncrement); // true
 ```
@@ -105,7 +112,7 @@ const verified = await counter.verify(proofOfIncrement); // true
 
 # Power of recursive proofs
 
-```typescript {all|1|1-2|8-18|9|9-17|15|all} {lines: true}
+```typescript {all} {lines: true}
 const credential = Experimental.ZkProgram({ ... });
 class CredentialProof extends Experimental.ZkProgram.Proof(credential) {}
 
@@ -133,6 +140,8 @@ const counter = Experimental.ZkProgram({
 
 # How is this helpful for blockchains?
 
+<v-clicks>
+
 - Blockchain is effectively a **spicy distributed database with consensus**
 - **Nodes execute user transactions** - authorized intent to perform an action on top of the chain data
 - **Results of the transactions are bundled into a block**
@@ -141,16 +150,21 @@ const counter = Experimental.ZkProgram({
 - MINA's protocol[^1] takes a novel approach, by **turning the aforementioned processes into circuits**
 - **Block is now a single recursive block proof 🎉**
 - This allows MINA nodes to **verify the computation that resulted into a block(proof) very cheaply**
+</v-clicks>
 
-## [^1]: [Mina protocol architecture](https://docs.minaprotocol.com/about-mina/protocol-architecture)
+[^1]: [Mina protocol architecture](https://docs.minaprotocol.com/about-mina/protocol-architecture)
 
-## layout: cover
+---
+layout: cover
+---
 
-# Smart contracts on MINA
+# MINA's native L1 smart contracts
 
-## MINA's native L1 smart contracts
+---
 
 # Smart contracts on MINA (1/3)
+
+<v-clicks>
 
 - Built using o1js's `SmartContract` (also known as zkApps)
 - Smart contract is just a **circuit that produces a proof of its own execution**
@@ -162,6 +176,8 @@ const counter = Experimental.ZkProgram({
 - Applying all account updates results into a block proof ✅
 - This approach results into **potential race conditions, since users have no built-in way of organizing off-chain**
 
+</v-clicks>
+
 ---
 
 # Smart contracts on MINA (2/3)
@@ -172,7 +188,7 @@ class Counter extends SmartContract {
   @state(Field) public commitment = State();
 
   @method()
-  public add(a: UInt64, b: UInt64) {
+  public increment(a: UInt64, b: UInt64) {
     const hash = Poseidon.hash(a.toFields());
     const commitment = this.commitment.get();
     this.commitment.assertEquals(commitment); // create a precondition
@@ -196,7 +212,7 @@ const counter = new Counter(address);
 
 // create account updates for the transaction, by executing the contract code
 const tx = Mina.transaction(feePayer, () => {
-  counter.add(UInt64.from(1));
+  counter.increment(UInt64.from(1));
 });
 // account updates:
 // [{ address, preconditions: [commitment], state: [incrementedCommitment] authorization: proof }]
@@ -223,7 +239,7 @@ flowchart BT
             accountUpdates["accountUpdate[]"]
         end
 
-        alice -- executes --> smartContract["counter.add(1)"]
+        alice -- executes --> smartContract["counter.increment(1)"]
         smartContract -- produces --> accountUpdates
         accountUpdates -- are authorized by --> prove["prove()"]
         prove --> send["send()"]
@@ -261,31 +277,44 @@ flowchart BT
 
 ---
 
-# ERC-20-like contract and public state
+# Key-value storage in smart contracts
+
+<v-clicks>
+
+<div>
 
 **Map-like storage is not possible with the L1 smart contracts** out of the box:
 
 ```typescript {all} { lines: true}
-class ERC20 extends SmartContract {
+class Counters extends SmartContract {
   // ❌ this is NOT possible with the L1 smart contract
-  @state(PublicKey, UInt64) public ledger = State();
+  @state(PublicKey, UInt64) public counters = State();
 
   @method()
-  transfer(from: PublicKey, to: PublicKey, amount: UInt64) {}
+  increment(for: PublicKey, by: UInt64) {}
 }
 ```
+
+</div>
+
+
+<div>
 
 You can **store a commitment to a merkle tree's root hash** instead:
 
 ```typescript {all} { lines: true}
-class ERC20 extends SmartContract {
+class Counters extends SmartContract {
   // ✅ this is possible with the L1 smart contract
-  @state(Field) public ledgerCommitment = State();
+  @state(Field) public countersCommitment = State();
 
   @method()
-  transfer(from: PublicKey, to: PublicKey, amount: UInt64) {}
+  increment(for: PublicKey, by: UInt64) {}
 }
 ```
+
+</div>
+
+</v-clicks>
 
 ---
 
@@ -316,30 +345,57 @@ by computing the root hash using a merkle witness.
 
 ---
 
+# MerkleMap to the rescue
+
+<v-clicks>
+
+- Merkle tree leafs can be identified by an index
+- If you use a merkle tree with a _depth_ of 256 (size), it means there's 2^256 leafs
+- This means the leaf index ranges from 0-2^256, threfore can be repesented by a single field
+- You can now think of a tree like of a key-value storage, where key = field, value = field, root = field
+- This key-value API is called MerkleMap
+
+</v-clicks>
+<v-clicks>
+
+```typescript {all} { lines: true }
+const map = new MerkleMap();
+const key = Poseidon.hash(PrivateKey.random().toPublicKey().toFields()) // Field
+const value = Poseidon.hash(UInt64.from(1000).toFields()); // Field
+
+// store a hash of values in the tree
+map.set(key, value);
+
+const witness = map.getWitness(key); // MerkleMapWitness
+const [computedRoot, computedKey] = witness.computeRootAndKey(value); // [Field, Field]
+```
+
+</v-clicks>
+
+---
+
 # Reading tree data
 
 ```typescript {all} { lines: true}
-class ERC20 extends SmartContract {
-    @state(Field) public ledgerCommitment = State();
+class Counters extends SmartContract {
+    @state(Field) public countersCommitment = State();
 
     @method()
-    transfer(from: PublicKey, to: PublicKey, amount: UInt64) {
-        const ledgerCommitment = this.ledgerCommitment.get();
-        this.ledgerCommitment.assertEquals(); // precondition to ledgerCommitment
+    increment(for: PublicKey, by: UInt64) {
+        const countersCommitment = this.countersCommitment.get();
+        this.countersCommitment.assertEquals(); // precondition to countersCommitment
 
-        const fromKey = toField(PublicKey, from); // returns h(from)
-        const fromBalance = getBalance(fromKey); // returns a MerkleMapWitness
+        const forKey = toField(for); // returns h(for)
+        const [forCounter, forCounterWitness] = getCounter(forKey); // returns [UInt64, MerkleMapWitness]
 
-        const toKey = toField(PublicKey, to);
-        const toBalance = getBalance(toKey);
+        const [computedCountersCommitment, computedForKey] = 
+            forCounterWitness.computeRootAndKey(toField(forCounter));
 
-        const [computedLedgerCommitment, computedKey] = from.computeRootAndKey(toField(UInt64, fromBalance));
+        // check if the provided data is valid, by checking if its part of the tree
+        countersCommitment.assertEquals(countersCommitment, "Uh-oh, invalid root hash!");
+        forKey.assertEquals(computedForKey, "Uh-oh, invalid key!");
 
-        // check if the provided data is valid, by checkin if its part of the tree
-        ledgerCommitment.assertEquals(computedLedgerCommitment, "Uh-oh, invalid root hash!");
-        fromKey.assertEquals(computedKey, "Uh-oh, invalid key!");
-
-        // ... rest of the transfer logic
+        // ... rest of the increment logic
     }
 
 ```
@@ -349,22 +405,21 @@ class ERC20 extends SmartContract {
 # Updating tree data
 
 ```typescript {all} { lines: true}
-class ERC20 extends SmartContract {
-    // ✅ this is possible with the L1 smart contract
-    @state(Field) public ledgerCommitment = State();
+class Counters extends SmartContract {
+    @state(Field) public countersCommitment = State();
 
     @method()
-    transfer(from: PublicKey, to: PublicKey, amount: UInt64) {
-        // ... our prior transfer logic is here
+    increment(for: PublicKey, by: UInt64) {
+        // ... our prior increment logic is here
 
-        const newFromBalance = fromBalance.sub(amount);
+        const newForCounter = forCounter.add(by);
         // compute a new tree root hash, using the new balance as a leaf value
-        const [newLedgerCommitment] = from.computeRootAndKey(toField(UInt64, newFrombalance));
+        const [newCountersCommitment] = forCounterWitness.computeRootAndKey(toField(newForCounter));
 
         // update the on-chain commitment
-        this.ledgerCommitment.set(newLedgerCommitment);
+        this.countersCommitment.set(newCountersCommitment);
 
-        // ... rest of the transfer logic
+        // ... rest of the increment logic
     }
 
 ```
@@ -373,11 +428,17 @@ class ERC20 extends SmartContract {
 
 # Design limitations
 
+<v-clicks>
+
 - Users **execute smart contracts on the client side**, independently of other clients
 - This **leads to preconditions pointing to the root hash of the tree**
 - If there are **two users transfering at the same time, their preconditions will be the same**
 - After **one transaction succeeds, the on-chain state is updated** (commitment changes)
 - This **invalidates the second transaction, since it now has an outdated precondition**
+
+</v-clicks>
+
+<v-clicks>
 
 ```mermaid
 flowchart LR
@@ -403,7 +464,7 @@ flowchart LR
             storage
         end
 
-        alice -- executes --> smartContract["counter.add(1)"]
+        alice -- executes --> smartContract["counters.increment(alice, 1)"]
         smartContract -- produces --> accountUpdates
     end
 
@@ -414,31 +475,152 @@ flowchart LR
     style tree stroke:red,stroke-width: 2px, stroke-dasharray: 6 6;
 ```
 
+</v-clicks>
+
+---
+layout: cover
 ---
 
-## layout: cover
+# Building a private airdrop <br/> on MINA
+
+---
+
+# Architecture
+
+<v-clicks>
+
+- **Airdrop merkle tree**, stores all addresses eligible for airdrop
+- Everyone receives the same amount of tokens from the airdrop
+- **Airdrop smart contract**, that tokens can be claimed from only if **the user can prove they are part of the airdrop tree**
+- In order to prevent double-claims, we must also **use a cryptographically sound nullifier** that **can't be traced back to the user's address**.
+
+</v-clicks>
+
+---
+
+# Smart Contract (1/2)
+
+```typescript {all} { lines: true }
+class Airdrop extends SmartContract {
+    @state(Field) public airdropTreeCommitment = State()
+    @state(Field) public nullifierTreeCommitment = State()
+
+    @method()
+    public claim(airdropWitness: MerkleMapWitness, nullifier: Nullifier, nullifierWitness: MerkleMapWitness) {
+        const airdropTreeCommitment = this.airdropTreeCommitment.getAndAssertEquals();
+        const nullifierTreeCommitment = this.nullifierTreeCommitment.getAndAssertEquals();
+
+        // check if user is part of the airdrop
+        const [computedAirdropTreeCommitment, computedAirdropKey] = airdropWitness.computeRootAndKey(
+            Bool(true).toField()    
+        );
+
+        nullifier.verify(message); // message needs to be a constant in your contract .e.g [Field(0)]
+
+        airdropTreeCommitment.assertEquals(computedAirdropTreeCommitment)
+        computedAirdropKey.assertEquals(Poseidon.hash(nullifier.getPublicKey().toFields()))
+
+        // ... rest of the claim logic
+    }
+}
+```
+
+---
+
+# Smart Contract (2/2)
+
+```typescript {all} { lines: true }
+class Airdrop extends SmartContract {
+    @method()
+    public claim(airdropWitness: MerkleMapWitness, nullifier: Nullifier, nullifierWitness: MerkleMapWitness) {
+        // ... earlier claim logic
+        
+        // check the nullifier has not been yet used
+        const [computedNullifierTreeCommitment, computedNullifierKey] = nullifierWitness.computeRootAndKey(
+            Field(0)  
+        );
+
+        nullifierTreeCommitment.assertEquals(computedNullifierTreeCommitment)
+        nullifier.key().assertEquals(computedNullifierKey)
+
+        const [updatedNullifierTreeCommitment] = nullifierWitness.computeRootAndKey(
+            Bool(true).toField() 
+        );
+
+        this.nullifierTreeCommitment.set(updatedNullifierTreeCommitment);
+        // airdrop the tokens
+        this.send({ to: this.sender, amount: UInt64.from(1000) });
+    }
+}
+```
+
+---
+layout: cover
+---
 
 # Protokit
 
-Protocol development framework for privacy enabled application chains.
+Protocol development framework for privacy enabled application chains <br/>(a.k.a. zkRollups)
+
+```bash {all}
+$ npx degit proto-kit/starter-kit#develop my-app-chain
+```
+
+---
+
+# What is Protokit?
+
+<v-clicks>
+
+- Typescript based framework for building zkChains
+- Not another zkEVM, uses a **custom-tailored zkVM** instead
+- **Hybrid execution model**, both off and on chain
+- Off-chain execution = **client side zk-proofs** 🤯
+- **End to end proven execution**, no sequencer operator shenanigans
+- Customizable and modular (not monolithic 🗿)
+- Virtually no learning curve (you should still pay attention tho 👀)
+
+</v-clicks>
 
 ---
 
 # Build your own zkRollup
 
+<v-clicks>
+
+- **Recursive zk-rollup is a series of recursive circuits**, that prove transaction execution and rollup state transitions
+- **L1 offers _sequence state_ and _actions_** to help you build zk-rollups, but **you still have to write your own circuits!**
 - Protokit enables developers to **build zero-knowledge, interoperable and privacy preserving application chains** with a minimal learning curve.
 - You can **roll your own zkRollup** in a few lines of code.
 - **zkRollups are a superset of zkApps**, combining **opt-in privacy features with on-chain execution** for the best-in-class user experience.
 
+</v-clicks>
+
+<v-clicks>
+
 ### What is a Protokit zkRollup made of?
+
+</v-clicks>
+
+<v-clicks>
 
 - **Runtime** = application logic
 - **Protocol** = underlying VM, block production, transaction fees, account state, ...
 - **Sequencer** = mempool, block production, settlement to L1
+- **L1 settlement contract** - an L1 contract validating your rollup's block proofs
 
-## 👆 You can replace any module of your app-chain, want a different mempool implementation? Just write one!
+</v-clicks>
+<v-clicks>
+
+👆 You can replace any module of your app-chain, want a different mempool implementation? Just write one!
+
+</v-clicks>
+
+---
 
 # Features
+
+<v-clicks>
 
 - 🔌 Supercharged developer experience, it's just Typescript (and a little bit of o1js)
 - 📚 Reusable modules, found an open-source module you like? `npm install <module-name>`
@@ -448,17 +630,22 @@ Protocol development framework for privacy enabled application chains.
 - 🏗️ Focus on business logic, we've done the heavy lifting for you. (looking at you, merkle trees 🌴)
 - 💳 Integrated with user wallets, thanks to `mina-signer`
 - 🤯 Not another zkEVM, but a succinct zkVM instead
+- 🤓 You can implement the entire zkApps MIP if you want, or just customize the runtime to fit your needs
+- 👑 Iterate your on-chain logic faster than with the L1, feature is king
 
-<br/>
+</v-clicks>
+
+<v-clicks>
 
 **soon™️:**
 
 - 🌉 Interoperable with L1s and other L2s (with varying degrees of security guarantees)
 - 🧺 Data availability (don't tell anyone just yet)
 
+</v-clicks>
+
 ---
 
-# Protokit architecture (simplified)
 
 ```mermaid
 flowchart BT
@@ -477,7 +664,9 @@ flowchart BT
         protocol --> blockProof
     end
 
-
+    subgraph L1["MINA L1"]
+        settlementContract["Settlement smart contract"]
+    end
 
     subgraph client
         direction LR
@@ -502,6 +691,8 @@ flowchart BT
     end
 
     client -- submit transaction --> zkRollup
+
+    zkRollup -- settles block proof --> L1
 ```
 
 ---
@@ -526,7 +717,7 @@ class Balances extends RuntimeModule<unknown> {
 
     const newFromBalance = fromBalance.sub(amount);
 
-    this.balances.set(newFromBalance); // produces a state transition
+    this.balances.set(from, newFromBalance); // produces a state transition
 
     // ... rest of the transfer logic
   }
@@ -578,35 +769,25 @@ const bobBalance =
 ```
 
 ---
-
-# transaction lifecycle
-
+layout: cover
 ---
 
-## layout: cover
+# Building a private airdrop runtime
 
-# Start building using the starter-kit
 
 ```bash {all}
-$ npx degit proto-kit/starter-kit#develop my-app-chain
+$ npx degit proto-kit/starter-kit#develop private-airdrop
 ```
-
-# Examples of runtime usage
-
-- injecting other runtime modules
-
-# Modularity examples
-
-- query api modularization
-- in memory signer / auro signer
-
-# Protocol module examples
-
-- tx fee
-- account state
-
-# What to expect in the future
 
 ---
 
-# how to build a private airdrop runtime
+# Additional content
+
+- Examples of runtime usage
+- Modularity examples
+- Query api modularization
+- In memory signer / Auro signer
+- Protocol module examples
+- tx fees
+- Account state
+- What to expect in the future

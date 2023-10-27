@@ -10,14 +10,14 @@
   "author": "",
   "license": "ISC",
   "dependencies": {
-    "@proto-kit/common": "file:../../framework/packages/common",
-    "@proto-kit/module": "file:../../framework/packages/module",
-    "@proto-kit/protocol": "file:../../framework/packages/protocol",
-    "@proto-kit/sdk": "file:../../framework/packages/sdk",
-    "@proto-kit/sequencer": "file:../../framework/packages/sequencer",
-    "o1js": "file:../../framework/node_modules/o1js",
+    "@proto-kit/common": "*",
+    "@proto-kit/module": "*",
+    "@proto-kit/protocol": "*",
+    "@proto-kit/sdk": "*",
+    "@proto-kit/sequencer": "*",
+    "o1js": "0.13.1",
     "reflect-metadata": "^0.1.13",
-    "tsyringe": "file:../../framework/node_modules/tsyringe"
+    "tsyringe": "*"
   },
   "devDependencies": {
     "@jest/globals": "^29.6.1",

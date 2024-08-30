@@ -88,7 +88,7 @@ describe("Airdrop", () => {
 
     // we can also set the number of worker threads to prevent efficiency cores
     // from being used on apple silicon
-    setNumberOfWorkers(7);
+    // setNumberOfWorkers(7);
 
     // either use the dummy proof here, or generate a real proof like below
     // M1 macs seem to have issues generating the mock proofs,
